@@ -243,4 +243,9 @@
   - **対策・実施**: iPhoneのSafariで確実にWebページ（JS動作）として開くため、PC上でローカルHTTP配信サーバー（ポート8000）を起動。同一Wi-Fi上のSafariから `http://172.16.0.206:8000` にアクセスすることを試みたが、ネットワーク環境（APアイソレーションやWi-Fi未接続）により開けないことが判明。
 - [x] 7. 外部ネットワーク対応・検索避け付きGitHub PagesによるWeb公開アプローチの策定
   - インターネット経由（4G/5G・別回線）でスマホのSafariから直接開けるよう、GitHubの無料枠で使える公開リポジトリ＋GitHub Pagesの活用を計画。
-  - プライベート感・検索避けを確保するため、`index.html` に `<meta name="robots" content="noindex, nofollow">` を付与し、目立たないリポジトリ名で即座にURL発行可能な状態に整備。
+  - プライベート感・検索避けを確保するため、`index.html` に `<meta name="robots" content="noindex, nofollow">` を付与。
+- [x] 8. GitHub Pages デプロイ完了
+  - リポジトリ: `https://github.com/hiyasinnsu/test_gemini-3.8-flash_syosetsu.git`
+  - 公開URL: `https://hiyasinnsu.github.io/test_gemini-3.8-flash_syosetsu/`
+  - GitHub APIにより `main` ブランチからのPages自動ビルド・デプロイを設定し、HTTP 200 OK（稼働確認済み）。
+  - スマホのSafari、Chrome等のブラウザから4G/5G/Wi-Fi問わず即時閲覧可能。
