@@ -103,10 +103,26 @@
       font-size: 12px;
       cursor: pointer;
       font-family: inherit;
+      transition: all 0.15s ease;
     }
 
     button:hover, select:hover {
       border-color: var(--accent-color);
+    }
+
+    button.active {
+      background-color: var(--accent-color);
+      color: #ffffff;
+      border-color: var(--accent-color);
+      font-weight: bold;
+    }
+
+    .size-display {
+      font-size: 11px;
+      color: var(--sub-text);
+      min-width: 28px;
+      text-align: center;
+      user-select: none;
     }
 
     /* 本文コンテナ（なろう完全再現） */
@@ -172,11 +188,12 @@
         <select id="chapterSelect" onchange="changeChapter(this.value)">
           <!-- JSで自動生成 -->
         </select>
-        <button onclick="setTheme('default')">白</button>
-        <button onclick="setTheme('ivory')">生成り</button>
-        <button onclick="setTheme('dark')">黒</button>
-        <button onclick="toggleFont()">フォント切替</button>
+        <button id="themeBtn-default" class="theme-btn" onclick="setTheme('default')">白</button>
+        <button id="themeBtn-ivory" class="theme-btn" onclick="setTheme('ivory')">生成り</button>
+        <button id="themeBtn-dark" class="theme-btn" onclick="setTheme('dark')">黒</button>
+        <button id="fontToggleBtn" onclick="toggleFont()">ゴシック</button>
         <button onclick="changeFontSize(-1)">小</button>
+        <span id="fontSizeDisplay" class="size-display">17px</span>
         <button onclick="changeFontSize(1)">大</button>
       </div>
     </div>
@@ -1201,7 +1218,32 @@
     let currentChapterIndex = 0;
     let currentFontSize = 17;
 
-    function renderChapter(index) {
+    // 書式設定のlocalStorage永続化キー
+    const STORAGE_KEYS = {
+      THEME: 'novel_viewer_theme',
+      FONT: 'novel_viewer_font',
+      FONT_SIZE: 'novel_viewer_font_size',
+      CHAPTER: 'novel_viewer_last_chapter'
+    };
+
+    function getSavedSetting(key, defaultVal) {
+      try {
+        const val = localStorage.getItem(key);
+        return val !== null ? val : defaultVal;
+      } catch (e) {
+        return defaultVal;
+      }
+    }
+
+    function saveSetting(key, val) {
+      try {
+        localStorage.setItem(key, val);
+      } catch (e) {
+        // プライベートモード等のストレージ制限対策
+      }
+    }
+
+    function renderChapter(index, saveProgress = true) {
       if (index < 0 || index >= chapters.length) return;
       currentChapterIndex = index;
       const ch = chapters[index];
@@ -1235,10 +1277,18 @@
       document.getElementById('prevBtn').disabled = (index === 0);
       document.getElementById('nextBtn').disabled = (index === chapters.length - 1);
 
+      if (saveProgress) {
+        saveSetting(STORAGE_KEYS.CHAPTER, index);
+        try {
+          history.replaceState(null, '', '#ch-' + (index + 1));
+        } catch (e) {}
+      }
+
       window.scrollTo(0, 0);
     }
 
     function init() {
+      // 1. 章セレクトボックスの生成
       const select = document.getElementById('chapterSelect');
       select.innerHTML = '';
       chapters.forEach((ch, idx) => {
@@ -1247,7 +1297,33 @@
         opt.textContent = ch.title;
         select.appendChild(opt);
       });
-      renderChapter(0);
+
+      // 2. 保存された書式設定の復元
+      const savedTheme = getSavedSetting(STORAGE_KEYS.THEME, 'default');
+      setTheme(savedTheme, false);
+
+      const savedFont = getSavedSetting(STORAGE_KEYS.FONT, 'mincho');
+      setFont(savedFont, false);
+
+      const savedSize = parseInt(getSavedSetting(STORAGE_KEYS.FONT_SIZE, '17'), 10);
+      setFontSize(isNaN(savedSize) ? 17 : savedSize, false);
+
+      // 3. 表示話数の決定（URLハッシュ優先、なければ保存された話数、初期値は第1話）
+      let targetIndex = 0;
+      const hashMatch = location.hash.match(/^#ch-(\d+)$/);
+      if (hashMatch) {
+        const hashNum = parseInt(hashMatch[1], 10) - 1;
+        if (hashNum >= 0 && hashNum < chapters.length) {
+          targetIndex = hashNum;
+        }
+      } else {
+        const savedCh = parseInt(getSavedSetting(STORAGE_KEYS.CHAPTER, '0'), 10);
+        if (!isNaN(savedCh) && savedCh >= 0 && savedCh < chapters.length) {
+          targetIndex = savedCh;
+        }
+      }
+
+      renderChapter(targetIndex, false);
     }
 
     function changeChapter(val) {
@@ -1262,19 +1338,54 @@
       if (currentChapterIndex < chapters.length - 1) renderChapter(currentChapterIndex + 1);
     }
 
-    function setTheme(theme) {
-      document.body.className = '';
+    function setTheme(theme, save = true) {
+      document.body.classList.remove('theme-ivory', 'theme-dark');
       if (theme === 'ivory') document.body.classList.add('theme-ivory');
       if (theme === 'dark') document.body.classList.add('theme-dark');
+
+      document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.getElementById('themeBtn-' + theme);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      if (save) saveSetting(STORAGE_KEYS.THEME, theme);
+    }
+
+    function setFont(font, save = true) {
+      if (font === 'gothic') {
+        document.body.classList.add('font-gothic');
+      } else {
+        document.body.classList.remove('font-gothic');
+      }
+
+      const fontBtn = document.getElementById('fontToggleBtn');
+      if (fontBtn) {
+        fontBtn.textContent = (font === 'gothic') ? '明朝に戻す' : 'ゴシック';
+        if (font === 'gothic') {
+          fontBtn.classList.add('active');
+        } else {
+          fontBtn.classList.remove('active');
+        }
+      }
+
+      if (save) saveSetting(STORAGE_KEYS.FONT, font);
     }
 
     function toggleFont() {
-      document.body.classList.toggle('font-gothic');
+      const isGothic = document.body.classList.contains('font-gothic');
+      setFont(isGothic ? 'mincho' : 'gothic');
+    }
+
+    function setFontSize(size, save = true) {
+      currentFontSize = Math.min(Math.max(size, 13), 24);
+      document.documentElement.style.setProperty('--font-size', currentFontSize + 'px');
+      const sizeDisplay = document.getElementById('fontSizeDisplay');
+      if (sizeDisplay) sizeDisplay.textContent = currentFontSize + 'px';
+
+      if (save) saveSetting(STORAGE_KEYS.FONT_SIZE, currentFontSize);
     }
 
     function changeFontSize(delta) {
-      currentFontSize = Math.min(Math.max(currentFontSize + delta, 13), 24);
-      document.documentElement.style.setProperty('--font-size', currentFontSize + 'px');
+      setFontSize(currentFontSize + delta);
     }
 
     window.onload = init;
